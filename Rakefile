@@ -3,6 +3,7 @@ require 'rake/rdoctask'
 require 'rake/gempackagetask'
 require 'rake/contrib/sshpublisher'
 
+
 PKG_NAME           = "eload_select"
 PKG_VERSION        = "0.0.1"
 PKG_FILE_NAME      = "#{PKG_NAME}-#{PKG_VERSION}"
@@ -22,8 +23,57 @@ spec = Gem::Specification.new do |s|
  
   s.author          = "Blythe Dunham"
   s.email           = "blythe@spongecell.com"
-  s.homepage        = "http://spongetech.wordpress.com/"
+  s.homepage        = "http://snowgiraffe.com/tech"
 end
+
+
+
+require 'rubygems'
+require 'rake'
+require 'rake/testtask'
+
+DIR = File.dirname( __FILE__ )
+
+task :default => [ "test:mysql" ]
+
+task :boot do
+  require File.expand_path( File.join( DIR, 'lib', 'ar-extensions' ) )
+  require File.expand_path( File.join( DIR, 'tests', 'connections', "native_#{ENV['ARE_DB']}", 'connection' ) )
+  require File.expand_path( File.join( DIR, 'db/migrate/version' ) )
+end
+
+
+
+ADAPTERS = %w(mysql)
+
+namespace :test do
+  namespace :activerecord do
+
+    ADAPTERS.each do |adapter|
+      desc "runs ActiveRecord unit tests for #{adapter} with ActiveRecord::Extensions"
+      task adapter.to_sym do |t|
+        activerecord_dir = ARGV[1]
+        if activerecord_dir.nil? or ! File.directory?( activerecord_dir )
+          STDERR.puts "ERROR: Pass in the path to ActiveRecord. Eg: /home/zdennis/rails_trunk/activerecord"
+          exit
+        end
+
+        old_dir, old_env = Dir.pwd, ENV['RUBYOPT']
+        Dir.chdir( activerecord_dir )
+        ENV['RUBYOPT'] = "-r#{File.join(old_dir,'init.rb')}"
+
+        load "Rakefile"
+        Rake::Task[ "test_#{adapter}" ].invoke
+        Dir.chdir( old_dir )
+        ENV['RUBYOPT'] = old_env
+      end
+    end
+
+  end
+
+ end
+
+
 
 desc 'Default: run unit tests.'
 task :default => :test

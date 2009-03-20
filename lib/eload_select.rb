@@ -9,11 +9,16 @@
 #   returns a record where the now(), 123, and YOUR MOM is placed in contact['now()'] => "12007-07-09 blah', contact['123'] => '123', contact['blah'] => "YOUR MOM"
 #   contact.account.name will return the account name
 #   
-# Also adding support for pre_sql, post_sql, keywords
-# 
+#
+
+require 'active_record/base'
+require 'active_record/version'
+
 
 module ActiveRecord
   module Associations
+    if ActiveRecord::VERSION::STRING < '2.0.0'
+
     class HasManyThroughAssociation < AssociationProxy #:nodoc:
       def find(*args)
         options = Base.send(:extract_options_from_args!, args)
@@ -42,27 +47,40 @@ module ActiveRecord
         @reflection.klass.find(*args)
       end
     end #HasManyThroughAssociation
-    
+    end
     
     module ClassMethods
       
       def construct_finder_sql_with_included_associations_with_eager_select(options, join_dependency)
+
+        #call into compatible Ar-Exention plugin if loaded
+        if respond_to? :construct_finder_sql_with_included_associations_with_ext
+          return construct_finder_sql_with_included_associations_with_ext(options, join_dependency)
+        end
+
         scope = scope(:find)
         sql = "SELECT "
-        sql << construct_select_sql((scope && scope[:select]) || options[:select], join_dependency) 
-	    sql << " FROM #{(scope && scope[:from]) || options[:from] || table_name} " 
+        sql << construct_eload_select_sql((scope && scope[:select]) || options[:select], join_dependency)
+	      sql << " FROM #{(scope && scope[:from]) || options[:from] || table_name} "
         sql << join_dependency.join_associations.collect{|join| join.association_join }.join
 
-        add_joins!(sql, options, scope)
+
+        add_joins!(sql, (ActiveRecord::VERSION::STRING < '2.0.0' ? options : options[:joins]), scope)
         add_conditions!(sql, options[:conditions], scope)
         add_limited_ids_condition!(sql, options, join_dependency) if !using_limitable_reflections?(join_dependency.reflections) && ((scope && scope[:limit]) || options[:limit])
 
-        sql << "GROUP BY #{options[:group]} " if options[:group]
- 
+        if ActiveRecord::VERSION::STRING > '2.3.0'
+          add_group!(sql, options[:group], options[:having], scope)
+        elsif respond_to? :add_group!
+          add_group!(sql, options[:group], scope)
+        else
+          sql << " GROUP BY #{options[:group]} " if options[:group]
+        end
+
         add_order!(sql, options[:order], scope)
         add_limit!(sql, options, scope) if using_limitable_reflections?(join_dependency.reflections)
         add_lock!(sql, options, scope)
- 
+
         return sanitize_sql(sql)
       end
 
@@ -95,7 +113,7 @@ module ActiveRecord
         additional_columns.collect{|column_name| column_name.last}.join(', ') 
       end 
      
-      def construct_select_sql(selected, join_dependency) 
+      def construct_eload_select_sql(selected, join_dependency)
         select_sql = (selected && selected.strip != '*' ?  
         columns_for_eager_loading(selected, join_dependency) :  
         column_aliases(join_dependency)) 
