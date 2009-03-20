@@ -1,0 +1,13 @@
+#this is based on 
+#http://dev.rubyonrails.org/ticket/5371
+#and the patch 7147 
+#http://dev.rubyonrails.org/attachment/ticket/7147/options_select_working_with_eager_loading.diff
+#
+#Enhanced to let you apply database functions to columns. These columns will be placed in the attributes of the base class
+#
+# ex. Contact.find :first, :include => :account, :select => 'now(), account.name, 123, "YOUR MOM" as blah'
+#   returns a record where the now(), 123, and YOUR MOM is placed in contact['now()'] => "12007-07-09 blah', contact['123'] => '123', contact['blah'] => "YOUR MOM"
+#   contact.account.name will return the account name
+#   
+# Also adding support for pre_sql, post_sql, keywords
+# 
